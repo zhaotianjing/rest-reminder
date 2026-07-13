@@ -4,7 +4,7 @@
 
 <h1 align="center">Rest Reminder</h1>
 
-A tiny native macOS menu bar app that reminds you to stand up and move every 40 minutes.
+A tiny native macOS menu bar app that reminds you to stand up and move at an interval you choose.
 
 ## Download and install
 
@@ -24,17 +24,30 @@ Do not use **Code > Download ZIP** unless you specifically want the source code 
 
 ## Daily use
 
-The 40-minute timer starts as soon as the app opens. There is no desktop window and no Dock icon.
+The timer starts as soon as the app opens. The default interval is 40 minutes, and your chosen interval is saved between launches. There is no persistent desktop window and no Dock icon.
 
 Look for the standing-person icon in the top-right menu bar. Click it to:
 
 - See the time remaining until the next reminder
-- Send a reminder immediately
+- Choose any whole-minute interval from 1 to 480 minutes
+- Send a test notification without resetting the timer
+- See whether the last notification was accepted and delivered by macOS
 - Pause or resume reminders
-- Reset the timer to 40 minutes
+- Reset the timer using the selected interval
+- Open macOS notification settings
 - Quit the app
 
 The app must remain running to send reminders. After restarting your Mac, open it again or follow the optional login-item instructions below.
+
+## If a notification does not appear
+
+1. Click the menu bar icon and choose **Send Test Notification**.
+2. Check the **Notifications** and **Last notification** lines at the top of the menu.
+3. If notifications or banners are disabled, choose **Open Notification Settings** and enable **Allow notifications** and **Show notifications on desktop** for Rest Reminder.
+4. Check whether a Focus mode is active. Focus can hide notification banners.
+5. In **System Settings > Notifications**, check the setting for notifications while mirroring or sharing the display. macOS can hide banners while screen sharing.
+
+**Delivered** means macOS placed the notification in Notification Center. A Focus mode or the screen-sharing setting can still prevent a banner from appearing on screen.
 
 ## Start automatically after login (optional)
 
@@ -46,9 +59,11 @@ The app must remain running to send reminders. After restarting your Mac, open i
 
 - Lives only in the menu bar
 - No desktop window and no Dock icon
-- Sends a local macOS notification every 40 minutes
+- Supports a user-selected interval from 1 to 480 minutes
+- Schedules reminders with macOS so sleep does not silently break the timer
+- Includes a test notification, scheduling error reporting, and visible delivery status
 - Shows the time remaining until the next reminder
-- Supports pause, resume, reset, remind now, and quit
+- Supports pause, resume, reset, and quit
 - No analytics, telemetry, accounts, or network access
 
 ## Requirements
@@ -68,7 +83,7 @@ The app will be created at `dist/Rest Reminder.app`.
 
 ## Privacy
 
-Rest Reminder runs entirely on your Mac. It does not connect to the internet, collect analytics, read your files, or send personal data anywhere. The only permission it requests is permission to display local notifications.
+Rest Reminder runs entirely on your Mac. It stores only your selected interval and the most recent notification delivery status and time in your local macOS preferences. It does not connect to the internet, collect analytics, read your files, or send personal data anywhere. The only permission it requests is permission to display local notifications.
 
 ## License
 
