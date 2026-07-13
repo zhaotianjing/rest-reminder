@@ -22,6 +22,7 @@ clang \
   -o "$APP/Contents/MacOS/RestReminder"
 
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
+cp "$ROOT/Assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 codesign --force --sign - --timestamp=none "$APP"
 
 echo "$APP"

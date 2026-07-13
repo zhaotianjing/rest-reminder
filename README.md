@@ -1,4 +1,8 @@
-# Rest Reminder
+<p align="center">
+  <img src="Assets/RestReminderLogo.png" width="160" alt="Rest Reminder logo">
+</p>
+
+<h1 align="center">Rest Reminder</h1>
 
 A tiny native macOS menu bar app that reminds you to stand up and move every 40 minutes.
 
@@ -9,8 +13,12 @@ You do **not** need to download the source code or the entire GitHub repository.
 1. Download the ready-to-use app: **[Rest-Reminder-macOS.zip](https://github.com/zhaotianjing/rest-reminder/releases/latest/download/Rest-Reminder-macOS.zip)**
 2. Double-click the downloaded ZIP file to extract it.
 3. Drag `Rest Reminder.app` into your **Applications** folder.
-4. For the first launch, Control-click `Rest Reminder.app`, choose **Open**, and then click **Open** again. This extra step is needed because the free release is not Apple-notarized.
-5. Click **Allow** when macOS asks for notification permission.
+4. Double-click `Rest Reminder.app`. If macOS blocks it, click **Done** in the warning.
+5. Open **System Settings > Privacy & Security**. Scroll down to the **Security** section and click **Open Anyway** next to the Rest Reminder message.
+6. Authenticate with your password or Touch ID if asked, then click **Open** in the final confirmation.
+7. Click **Allow** when macOS asks for notification permission.
+
+The **Open Anyway** steps are only required for the first launch. If the app opens normally in step 4, skip steps 5 and 6.
 
 Do not use **Code > Download ZIP** unless you specifically want the source code and plan to build the app yourself.
 

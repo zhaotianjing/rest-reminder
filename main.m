@@ -39,11 +39,59 @@ static const NSTimeInterval ReminderInterval = 40 * 60;
     }];
 }
 
+- (NSImage *)menuBarLogoImage {
+    NSImage *image = [NSImage imageWithSize:NSMakeSize(20, 20)
+                                    flipped:NO
+                             drawingHandler:^BOOL(NSRect destinationRect) {
+        [NSColor.blackColor setStroke];
+        [NSColor.blackColor setFill];
+
+        NSBezierPath *ring = [NSBezierPath bezierPath];
+        [ring appendBezierPathWithArcWithCenter:NSMakePoint(10, 10)
+                                         radius:8
+                                     startAngle:30
+                                       endAngle:330];
+        ring.lineWidth = 1.7;
+        ring.lineCapStyle = NSLineCapStyleRound;
+        [ring stroke];
+
+        NSBezierPath *timerTick = [NSBezierPath bezierPath];
+        [timerTick moveToPoint:NSMakePoint(16.1, 14.1)];
+        [timerTick lineToPoint:NSMakePoint(17.2, 15.3)];
+        timerTick.lineWidth = 1.9;
+        timerTick.lineCapStyle = NSLineCapStyleRound;
+        [timerTick stroke];
+
+        [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(8.2, 10.5, 3.6, 3.6)] fill];
+
+        NSBezierPath *person = [NSBezierPath bezierPath];
+        [person moveToPoint:NSMakePoint(10, 10.5)];
+        [person lineToPoint:NSMakePoint(10, 6.5)];
+        [person moveToPoint:NSMakePoint(10, 10.2)];
+        [person lineToPoint:NSMakePoint(6.9, 13.7)];
+        [person moveToPoint:NSMakePoint(10, 10.2)];
+        [person lineToPoint:NSMakePoint(13.1, 13.7)];
+        [person moveToPoint:NSMakePoint(10, 6.5)];
+        [person lineToPoint:NSMakePoint(7.8, 4.1)];
+        [person moveToPoint:NSMakePoint(10, 6.5)];
+        [person lineToPoint:NSMakePoint(12.2, 4.1)];
+        person.lineWidth = 2.1;
+        person.lineCapStyle = NSLineCapStyleRound;
+        person.lineJoinStyle = NSLineJoinStyleRound;
+        [person stroke];
+
+        return YES;
+    }];
+    image.template = YES;
+    return image;
+}
+
 - (void)configureMenuBarItem {
     self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
     NSStatusBarButton *button = self.statusItem.button;
-    button.image = [NSImage imageWithSystemSymbolName:@"figure.stand"
-                            accessibilityDescription:@"Rest Reminder"];
+    button.image = [self menuBarLogoImage];
+    button.image.accessibilityDescription = @"Rest Reminder";
+    button.imageScaling = NSImageScaleProportionallyDown;
     button.toolTip = @"Rest Reminder: every 40 minutes";
 
     self.menu = [[NSMenu alloc] init];
