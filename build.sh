@@ -14,6 +14,8 @@ clang \
   -fobjc-arc \
   -fmodules-cache-path="$ROOT/.module-cache" \
   -mmacosx-version-min=13.0 \
+  -Wall \
+  -Wextra \
   -arch arm64 \
   -arch x86_64 \
   -framework Cocoa \

@@ -17,6 +17,8 @@ static NSString *const LastNotificationDateKey = @"LastNotificationDate";
 @property(nonatomic, strong) NSMenuItem *lastNotificationItem;
 @property(nonatomic, strong) NSMenuItem *pauseItem;
 @property(nonatomic, strong) NSMenuItem *restartItem;
+@property(nonatomic, strong) NSPanel *breakAlertPanel;
+@property(nonatomic, strong) NSRunningApplication *previousFrontmostApplication;
 @property(nonatomic, strong) NSTimer *reminderTimer;
 @property(nonatomic, strong) NSTimer *displayTimer;
 @property(nonatomic, strong) NSDate *nextReminderDate;
@@ -26,12 +28,21 @@ static NSString *const LastNotificationDateKey = @"LastNotificationDate";
 @property(nonatomic) NSInteger intervalMinutes;
 @property(nonatomic) BOOL paused;
 @property(nonatomic) BOOL notificationsAllowed;
+@property(nonatomic) BOOL awaitingAcknowledgement;
+@property(nonatomic) BOOL breakAlertPanelIsTest;
+@property(nonatomic) BOOL menuIsOpen;
+@property(nonatomic) BOOL pendingBreakAlertPresentation;
+@property(nonatomic) BOOL pendingBreakAlertIsTest;
 - (void)recordNotificationStatus:(NSString *)status;
+- (void)queueBreakAlertIsTest:(BOOL)isTest;
+- (void)presentPendingBreakAlertIfPossible;
+- (void)presentBreakAlertIsTest:(BOOL)isTest;
 @end
 
 @implementation AppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
+    (void)notification;
     NSInteger savedMinutes = [NSUserDefaults.standardUserDefaults integerForKey:IntervalMinutesKey];
     self.intervalMinutes = (savedMinutes >= MinimumIntervalMinutes && savedMinutes <= MaximumIntervalMinutes)
         ? savedMinutes
@@ -180,7 +191,7 @@ static NSString *const LastNotificationDateKey = @"LastNotificationDate";
     [self.menu addItem:self.lastNotificationItem];
     [self.menu addItem:NSMenuItem.separatorItem];
 
-    NSMenuItem *testItem = [[NSMenuItem alloc] initWithTitle:@"Send Test Notification"
+    NSMenuItem *testItem = [[NSMenuItem alloc] initWithTitle:@"Test Reminder Alert"
                                                        action:@selector(remindNow:)
                                                 keyEquivalent:@"r"];
     testItem.target = self;
@@ -220,6 +231,233 @@ static NSString *const LastNotificationDateKey = @"LastNotificationDate";
 
     self.statusItem.menu = self.menu;
     [self updateMenuText];
+}
+
+- (void)queueBreakAlertIsTest:(BOOL)isTest {
+    if (!isTest) {
+        self.awaitingAcknowledgement = YES;
+    }
+
+    if (self.pendingBreakAlertPresentation) {
+        if (!isTest) {
+            self.pendingBreakAlertIsTest = NO;
+        }
+    } else {
+        self.pendingBreakAlertPresentation = YES;
+        self.pendingBreakAlertIsTest = isTest;
+    }
+
+    if (self.menuIsOpen) {
+        [self.menu cancelTracking];
+        return;
+    }
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [weakSelf presentPendingBreakAlertIfPossible];
+    });
+}
+
+- (void)presentPendingBreakAlertIfPossible {
+    if (!self.pendingBreakAlertPresentation || self.menuIsOpen) {
+        return;
+    }
+
+    BOOL isTest = self.pendingBreakAlertIsTest;
+    self.pendingBreakAlertPresentation = NO;
+    [self presentBreakAlertIsTest:isTest];
+}
+
+- (void)presentBreakAlertIsTest:(BOOL)isTest {
+    NSRunningApplication *currentApplication = NSRunningApplication.currentApplication;
+    NSRunningApplication *frontmostApplication = NSWorkspace.sharedWorkspace.frontmostApplication;
+    if (!isTest && self.breakAlertPanelIsTest &&
+        frontmostApplication &&
+        frontmostApplication.processIdentifier != currentApplication.processIdentifier) {
+        self.previousFrontmostApplication = frontmostApplication;
+    }
+
+    if (self.breakAlertPanel) {
+        if (!self.breakAlertPanelIsTest || isTest) {
+            [self.breakAlertPanel orderFrontRegardless];
+            [self.breakAlertPanel makeKeyAndOrderFront:nil];
+            return;
+        }
+
+        [self.breakAlertPanel orderOut:nil];
+        self.breakAlertPanel = nil;
+    }
+
+    NSRect contentRect = NSMakeRect(0, 0, 620, 400);
+    NSPanel *panel = [[NSPanel alloc] initWithContentRect:contentRect
+                                               styleMask:NSWindowStyleMaskTitled
+                                                 backing:NSBackingStoreBuffered
+                                                   defer:NO];
+    panel.title = isTest ? @"Rest Reminder Preview" : @"Rest Reminder";
+    panel.floatingPanel = YES;
+    panel.becomesKeyOnlyIfNeeded = NO;
+    panel.hidesOnDeactivate = NO;
+    panel.canHide = NO;
+    panel.releasedWhenClosed = NO;
+    panel.worksWhenModal = YES;
+    panel.level = NSFloatingWindowLevel;
+    panel.animationBehavior = NSWindowAnimationBehaviorAlertPanel;
+    panel.collectionBehavior = (NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                NSWindowCollectionBehaviorCanJoinAllApplications |
+                                NSWindowCollectionBehaviorFullScreenAuxiliary |
+                                NSWindowCollectionBehaviorIgnoresCycle);
+
+    NSView *contentView = panel.contentView;
+    NSView *accentView = [[NSView alloc] initWithFrame:NSZeroRect];
+    accentView.translatesAutoresizingMaskIntoConstraints = NO;
+    accentView.wantsLayer = YES;
+    accentView.layer.backgroundColor = NSColor.systemOrangeColor.CGColor;
+    [contentView addSubview:accentView];
+
+    NSImageView *iconView = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    iconView.translatesAutoresizingMaskIntoConstraints = NO;
+    iconView.image = NSApplication.sharedApplication.applicationIconImage;
+    iconView.imageScaling = NSImageScaleProportionallyUpOrDown;
+    iconView.accessibilityLabel = @"Rest Reminder";
+
+    NSTextField *headline = [NSTextField labelWithString:(isTest ? @"Prominent reminder preview" : @"Time to stand up and move")];
+    headline.translatesAutoresizingMaskIntoConstraints = NO;
+    headline.font = [NSFont systemFontOfSize:32 weight:NSFontWeightBold];
+    headline.alignment = NSTextAlignmentCenter;
+    headline.maximumNumberOfLines = 2;
+    headline.lineBreakMode = NSLineBreakByWordWrapping;
+
+    NSString *intervalText = isTest
+        ? @"This preview does not reset your current timer."
+        : [NSString stringWithFormat:@"Your %@ focus interval is complete.", [self intervalDescription]];
+    NSTextField *intervalLabel = [NSTextField labelWithString:intervalText];
+    intervalLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    intervalLabel.font = [NSFont systemFontOfSize:18 weight:NSFontWeightSemibold];
+    intervalLabel.textColor = NSColor.secondaryLabelColor;
+    intervalLabel.alignment = NSTextAlignmentCenter;
+    intervalLabel.maximumNumberOfLines = 2;
+    intervalLabel.lineBreakMode = NSLineBreakByWordWrapping;
+
+    NSString *bodyText = isTest
+        ? @"This window stays in front until you close the preview."
+        : @"Step away from the screen for a few minutes. Walk, stretch, and relax your eyes and shoulders.";
+    NSTextField *bodyLabel = [NSTextField labelWithString:bodyText];
+    bodyLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    bodyLabel.font = [NSFont systemFontOfSize:17];
+    bodyLabel.alignment = NSTextAlignmentCenter;
+    bodyLabel.maximumNumberOfLines = 3;
+    bodyLabel.lineBreakMode = NSLineBreakByWordWrapping;
+
+    NSString *buttonTitle = isTest ? @"Close Preview" : @"I’m Up — Start Next Timer";
+    NSButton *confirmButton = [NSButton buttonWithTitle:buttonTitle
+                                                  target:self
+                                                  action:@selector(acknowledgeBreakAlert:)];
+    confirmButton.translatesAutoresizingMaskIntoConstraints = NO;
+    confirmButton.bezelStyle = NSBezelStyleRounded;
+    confirmButton.controlSize = NSControlSizeLarge;
+    confirmButton.font = [NSFont systemFontOfSize:15 weight:NSFontWeightSemibold];
+    confirmButton.keyEquivalent = @"\r";
+
+    NSStackView *stack = [[NSStackView alloc] initWithFrame:NSZeroRect];
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    stack.orientation = NSUserInterfaceLayoutOrientationVertical;
+    stack.alignment = NSLayoutAttributeCenterX;
+    stack.spacing = 12;
+    [stack addArrangedSubview:iconView];
+    [stack addArrangedSubview:headline];
+    [stack addArrangedSubview:intervalLabel];
+    [stack addArrangedSubview:bodyLabel];
+    [stack addArrangedSubview:confirmButton];
+    [stack setCustomSpacing:18 afterView:iconView];
+    [stack setCustomSpacing:8 afterView:headline];
+    [stack setCustomSpacing:10 afterView:intervalLabel];
+    [stack setCustomSpacing:24 afterView:bodyLabel];
+    [contentView addSubview:stack];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [accentView.topAnchor constraintEqualToAnchor:contentView.topAnchor],
+        [accentView.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor],
+        [accentView.trailingAnchor constraintEqualToAnchor:contentView.trailingAnchor],
+        [accentView.heightAnchor constraintEqualToConstant:9],
+        [stack.topAnchor constraintEqualToAnchor:accentView.bottomAnchor constant:24],
+        [stack.centerXAnchor constraintEqualToAnchor:contentView.centerXAnchor],
+        [stack.bottomAnchor constraintLessThanOrEqualToAnchor:contentView.bottomAnchor constant:-24],
+        [iconView.widthAnchor constraintEqualToConstant:76],
+        [iconView.heightAnchor constraintEqualToConstant:76],
+        [headline.widthAnchor constraintEqualToConstant:540],
+        [intervalLabel.widthAnchor constraintEqualToConstant:520],
+        [bodyLabel.widthAnchor constraintEqualToConstant:500],
+        [confirmButton.widthAnchor constraintEqualToConstant:(isTest ? 180 : 280)],
+        [confirmButton.heightAnchor constraintEqualToConstant:46]
+    ]];
+
+    NSScreen *targetScreen = NSScreen.mainScreen ?: NSScreen.screens.firstObject;
+    NSPoint mouseLocation = NSEvent.mouseLocation;
+    for (NSScreen *screen in NSScreen.screens) {
+        if (NSPointInRect(mouseLocation, screen.frame)) {
+            targetScreen = screen;
+            break;
+        }
+    }
+    if (targetScreen) {
+        NSRect visibleFrame = targetScreen.visibleFrame;
+        NSRect panelFrame = panel.frame;
+        [panel setFrameOrigin:NSMakePoint(NSMidX(visibleFrame) - NSWidth(panelFrame) / 2,
+                                          NSMidY(visibleFrame) - NSHeight(panelFrame) / 2)];
+    } else {
+        [panel center];
+    }
+
+    if (!self.previousFrontmostApplication &&
+        frontmostApplication &&
+        frontmostApplication.processIdentifier != currentApplication.processIdentifier) {
+        self.previousFrontmostApplication = frontmostApplication;
+    }
+
+    self.breakAlertPanel = panel;
+    self.breakAlertPanelIsTest = isTest;
+    [panel orderFrontRegardless];
+    if (@available(macOS 14.0, *)) {
+        [NSApplication.sharedApplication activate];
+    } else {
+        [NSApplication.sharedApplication activateIgnoringOtherApps:YES];
+    }
+    [panel makeKeyAndOrderFront:nil];
+    [panel makeFirstResponder:confirmButton];
+    NSBeep();
+}
+
+- (void)acknowledgeBreakAlert:(id)sender {
+    (void)sender;
+    BOOL wasTest = self.breakAlertPanelIsTest;
+    BOOL shouldStartNextTimer = self.awaitingAcknowledgement && !wasTest;
+    if (!wasTest) {
+        self.awaitingAcknowledgement = NO;
+    }
+    self.breakAlertPanelIsTest = NO;
+
+    [self.breakAlertPanel orderOut:nil];
+    self.breakAlertPanel = nil;
+
+    NSRunningApplication *previousApplication = self.previousFrontmostApplication;
+    self.previousFrontmostApplication = nil;
+    [NSApplication.sharedApplication deactivate];
+    if (previousApplication && !previousApplication.terminated) {
+        NSApplicationActivationOptions options = NSApplicationActivateAllWindows;
+        if (@available(macOS 14.0, *)) {
+            [previousApplication activateWithOptions:options];
+        } else {
+            [previousApplication activateWithOptions:(options | NSApplicationActivateIgnoringOtherApps)];
+        }
+    }
+
+    if (shouldStartNextTimer && !self.paused) {
+        [self scheduleNextReminderAfter:[self reminderInterval]];
+    } else {
+        [self updateMenuText];
+    }
+
+    [self presentPendingBreakAlertIfPossible];
 }
 
 - (void)scheduleNextReminderAfter:(NSTimeInterval)interval {
@@ -297,10 +535,14 @@ static NSString *const LastNotificationDateKey = @"LastNotificationDate";
 }
 
 - (void)timerDidFire:(NSTimer *)timer {
+    (void)timer;
+    self.reminderTimer = nil;
     NSString *deliveredIdentifier = self.scheduledReminderIdentifier;
     self.scheduledReminderIdentifier = nil;
     [self markNotificationSentAndVerify:deliveredIdentifier];
-    [self scheduleNextReminderAfter:[self reminderInterval]];
+    self.nextReminderDate = nil;
+    [self queueBreakAlertIsTest:NO];
+    [self updateMenuText];
 }
 
 - (void)sendTestNotification {
@@ -385,6 +627,18 @@ static NSString *const LastNotificationDateKey = @"LastNotificationDate";
 - (void)updateMenuText {
     self.intervalItem.title = [NSString stringWithFormat:@"Interval: %@", [self intervalDescription]];
     self.restartItem.title = [NSString stringWithFormat:@"Reset %@ Timer", [self intervalDescription]];
+    self.pauseItem.enabled = YES;
+    self.restartItem.enabled = YES;
+
+    if (self.awaitingAcknowledgement) {
+        self.stateItem.title = @"Break reminder: Waiting for acknowledgement";
+        self.countdownItem.title = @"Next timer starts after confirmation";
+        self.pauseItem.title = @"Break Reminder Active";
+        self.pauseItem.enabled = NO;
+        self.restartItem.enabled = NO;
+        self.statusItem.button.toolTip = @"Break reminder is waiting for acknowledgement";
+        return;
+    }
 
     if (self.paused) {
         self.stateItem.title = @"Reminders: Paused";
@@ -410,14 +664,25 @@ static NSString *const LastNotificationDateKey = @"LastNotificationDate";
 }
 
 - (void)menuWillOpen:(NSMenu *)menu {
+    (void)menu;
+    self.menuIsOpen = YES;
     [self updateMenuText];
 }
 
+- (void)menuDidClose:(NSMenu *)menu {
+    (void)menu;
+    self.menuIsOpen = NO;
+    [self presentPendingBreakAlertIfPossible];
+}
+
 - (void)remindNow:(id)sender {
+    (void)sender;
+    [self queueBreakAlertIsTest:YES];
     [self sendTestNotification];
 }
 
 - (void)setReminderInterval:(id)sender {
+    (void)sender;
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = @"Set Reminder Interval";
     alert.informativeText = [NSString stringWithFormat:@"Enter a whole number from %ld to %ld minutes.", MinimumIntervalMinutes, MaximumIntervalMinutes];
@@ -446,10 +711,20 @@ static NSString *const LastNotificationDateKey = @"LastNotificationDate";
     self.intervalMinutes = minutes;
     [NSUserDefaults.standardUserDefaults setInteger:minutes forKey:IntervalMinutesKey];
     self.paused = NO;
-    [self scheduleNextReminderAfter:[self reminderInterval]];
+    if (self.awaitingAcknowledgement) {
+        [self updateMenuText];
+    } else {
+        [self scheduleNextReminderAfter:[self reminderInterval]];
+    }
 }
 
 - (void)togglePause:(id)sender {
+    (void)sender;
+    if (self.awaitingAcknowledgement) {
+        [self queueBreakAlertIsTest:NO];
+        return;
+    }
+
     if (self.paused) {
         self.paused = NO;
         [self scheduleNextReminderAfter:MAX(1, self.remainingWhenPaused)];
@@ -464,27 +739,44 @@ static NSString *const LastNotificationDateKey = @"LastNotificationDate";
 }
 
 - (void)restartTimer:(id)sender {
+    (void)sender;
+    if (self.awaitingAcknowledgement) {
+        [self queueBreakAlertIsTest:NO];
+        return;
+    }
+
     self.paused = NO;
     [self scheduleNextReminderAfter:[self reminderInterval]];
 }
 
 - (void)openNotificationSettings:(id)sender {
+    (void)sender;
     NSURL *url = [NSURL URLWithString:@"x-apple.systempreferences:com.apple.Notifications-Settings.extension"];
     [NSWorkspace.sharedWorkspace openURL:url];
 }
 
 - (void)quit:(id)sender {
+    (void)sender;
+    self.awaitingAcknowledgement = NO;
+    self.pendingBreakAlertPresentation = NO;
+    [self.breakAlertPanel orderOut:nil];
+    self.breakAlertPanel = nil;
     [self cancelScheduledSystemNotification];
     [NSApplication.sharedApplication terminate:nil];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
+    (void)notification;
+    self.awaitingAcknowledgement = NO;
+    self.pendingBreakAlertPresentation = NO;
     [self cancelScheduledSystemNotification];
 }
 
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
        willPresentNotification:(UNNotification *)notification
          withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler {
+    (void)center;
+    (void)notification;
     completionHandler(UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionSound);
 }
 
