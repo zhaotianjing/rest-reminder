@@ -20,6 +20,10 @@ You do **not** need to download the source code or the entire GitHub repository.
 
 The **Open Anyway** steps are only required for the first launch. If the app opens normally in step 4, skip steps 5 and 6.
 
+Rest Reminder uses App Sandbox and Hardened Runtime. The free release is still locally signed rather than Apple-notarized, which is why macOS may require **Open Anyway**.
+
+When upgrading from v1.3.0 or earlier, macOS moves the existing Rest Reminder settings into the app's private sandbox container on the first launch.
+
 Do not use **Code > Download ZIP** unless you specifically want the source code and plan to build the app yourself.
 
 ## Daily use
@@ -72,6 +76,8 @@ Click the menu bar icon and choose **Test Reminder Alert**. A preview window wil
 - Shows the time remaining until the next reminder
 - Supports pause, resume, reset, and quit
 - No analytics, telemetry, accounts, or network access
+- Uses App Sandbox with no network, user-file, camera, microphone, location, or automation entitlements
+- Uses Hardened Runtime to protect against code injection and unauthorized dynamic libraries
 
 ## Requirements
 
@@ -90,7 +96,9 @@ The app will be created at `dist/Rest Reminder.app`.
 
 ## Privacy
 
-Rest Reminder runs entirely on your Mac. It stores only your selected interval and the most recent notification delivery status and time in your local macOS preferences. It does not connect to the internet, collect analytics, read your files, or send personal data anywhere. The prominent reminder window is created locally and does not capture your screen or require any additional permission. The only permission the app requests is permission to display its backup local notification.
+Rest Reminder runs entirely on your Mac. App Sandbox gives the app a private container, and the app is granted no network or user-file access. It stores only your selected interval and the most recent notification delivery status and time in its local macOS preferences. It does not connect to the internet, collect analytics, read your files, or send personal data anywhere. The prominent reminder window is created locally and does not capture your screen or require any additional permission. The only permission the app requests is permission to display its backup local notification.
+
+The free GitHub build uses an ad-hoc signature because it is distributed without an Apple Developer ID certificate. On macOS 14 or later, a future update signed with a different identity may ask for permission to access the existing sandbox container. A stable Developer ID signature and Apple notarization are the long-term way to avoid that update prompt.
 
 ## License
 
